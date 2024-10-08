@@ -1,7 +1,7 @@
 import pandas as pd
 
 # Load the Excel file
-file_path = r'C:\Users\User\Desktop\pp\SDP.xlsx'  # Change this to the path of your file
+file_path = r'C:\Users\User\Desktop\lexicon_analysis\SDP.xlsx'  # Change this to the path of your file
 xls = pd.ExcelFile(file_path)
 
 # Load both sheets into separate DataFrames
