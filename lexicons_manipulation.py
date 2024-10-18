@@ -1,28 +1,43 @@
 import pandas as pd
 
 # Load the Excel file
-file_path = r'C:\Users\User\Desktop\lexicon_analysis\SDP.xlsx'  # Change this to the path of your file
-xls = pd.ExcelFile(file_path)
+file_path = r'C:\Users\User\Desktop\lexicon_analysis\SDP.xlsx'
+excel_data = pd.ExcelFile(file_path)
 
-# Load both sheets into separate DataFrames
-sheet1 = pd.read_excel(xls, xls.sheet_names[0])
-sheet2 = pd.read_excel(xls, xls.sheet_names[1])
+# Read the sheets into DataFrames
+df_lexicon_1 = pd.read_excel(excel_data, sheet_name='lexicon_1')
+df_lexicon_2 = pd.read_excel(excel_data, sheet_name='lexicon_2')
+df_lexicon_3 = pd.read_excel(excel_data, sheet_name='lexicon_3')
 
-# Convert both DataFrames to sets of words (assuming words are in the first column)
-set1 = set(sheet1.iloc[:, 0])
-set2 = set(sheet2.iloc[:, 0])
+# Standardize emotional columns to numeric values
+emotional_columns = ['anger', 'anticipation', 'disgust', 'fear', 'joy', 'negative', 'positive', 'sadness', 'surprise', 'trust']
+for df in [df_lexicon_1, df_lexicon_2, df_lexicon_3]:
+    for col in emotional_columns:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0).apply(lambda x: 1 if x >= 1 else 0)
 
-# AND operation (Intersection of both sheets)
-and_operation = set1.intersection(set2)
-and_df = pd.DataFrame(and_operation, columns=['Common Words'])
+# AND operation: Words common in all lexicons
+common_words = set(df_lexicon_1['English Word']).intersection(df_lexicon_2['English Word'], df_lexicon_3['English Word'])
+df_common = pd.concat([
+    df_lexicon_1[df_lexicon_1['English Word'].isin(common_words)],
+    df_lexicon_2[df_lexicon_2['English Word'].isin(common_words)],
+    df_lexicon_3[df_lexicon_3['English Word'].isin(common_words)]
+])
+df_and_operation = df_common.groupby(['English Word', 'Azerbaijani Word'], as_index=False).max()
 
-# OR operation (Union of both sheets)
-or_operation = set1.union(set2)
-or_df = pd.DataFrame(or_operation, columns=['All Words'])
+# OR operation: All words from all lexicons
+df_all = pd.concat([df_lexicon_1, df_lexicon_2, df_lexicon_3])
+df_or_operation = df_all.groupby(['English Word', 'Azerbaijani Word'], as_index=False).max()
+df_or_operation['common'] = df_or_operation['English Word'].isin(common_words).astype(int)
+df_or_operation.sort_values(by=['common', 'English Word'], ascending=[False, True], inplace=True)
+df_or_operation.drop(columns='common', inplace=True)
 
-# Now save the results into the same Excel file as new sheets
-with pd.ExcelWriter(file_path, engine='openpyxl', mode='a') as writer:  # 'a' mode to append
-    and_df.to_excel(writer, sheet_name='AND Operation', index=False)
-    or_df.to_excel(writer, sheet_name='OR Operation', index=False)
+# Save the processed data back to the Excel file
+with pd.ExcelWriter(file_path, engine='openpyxl', mode='a') as writer:
+    for sheet_name in ['AND Operation', 'OR Operation']:
+        if sheet_name in writer.book.sheetnames:
+            del writer.book[sheet_name]
+    df_and_operation.to_excel(writer, sheet_name='AND Operation', index=False)
+    df_or_operation.to_excel(writer, sheet_name='OR Operation', index=False)
 
-print("Operations completed and sheets added to the Excel file.")
+print("Excel file has been updated with 'AND Operation' and 'OR Operation' sheets.")
